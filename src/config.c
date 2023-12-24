@@ -225,6 +225,57 @@ int readcfg(struct config *cfg, const char *filename)
             }
         }
 
+        int min_ttl = json_integer_value(json_object_get(filter, "min_ttl"));
+        if (min_ttl) {
+            cfg->filters[i].min_ttl = (__u8)min_ttl;
+            cfg->filters[i].do_min_ttl = 1;
+        }
+
+        int max_ttl = json_integer_value(json_object_get(filter, "max_ttl"));
+        if (max_ttl) {
+            cfg->filters[i].max_ttl = (__u8)max_ttl;
+            cfg->filters[i].do_max_ttl = 1;
+        }
+
+        int min_len = json_integer_value(json_object_get(filter, "min_len"));
+        if (min_len) {
+            cfg->filters[i].min_len = min_len;
+            cfg->filters[i].do_min_len = 1;
+        }
+
+        int max_len = json_integer_value(json_object_get(filter, "max_len"));
+        if (max_len) {
+            cfg->filters[i].max_len = max_len;
+            cfg->filters[i].do_max_len = 1;
+        }
+
+        int tos = json_integer_value(json_object_get(filter, "tos"));
+        if (tos) {
+            cfg->filters[i].tos = (__u8)tos;
+            cfg->filters[i].do_tos = 1;
+        }
+
+        long long pps = json_integer_value(json_object_get(filter, "pps"));
+        if (pps) {
+            cfg->filters[i].pps = pps;
+            cfg->filters[i].do_pps = 1;
+        }
+
+        long long bps = json_integer_value(json_object_get(filter, "bps"));
+        if (bps) {
+            cfg->filters[i].bps = bps;
+            cfg->filters[i].do_bps = 1;
+        }
+
+        long long blocktime = json_integer_value(json_object_get(filter, "blocktime"));
+        if (blocktime) {
+            cfg->filters[i].blocktime = blocktime;
+        } else {
+            cfg->filters[i].blocktime = 1;
+        }
+
+        /* TCP options */
+        // TCP Enabled
         cfg->filters[i].tcpopts.enabled = json_boolean_value(json_object_get(filter, "tcp_enabled"));
 
         long long tcpdport = json_integer_value(json_object_get(filter, "tcp_dport"));
@@ -235,8 +286,92 @@ int readcfg(struct config *cfg, const char *filename)
 
         long long tcpsport = json_integer_value(json_object_get(filter, "tcp_sport"));
         if (tcpsport) {
-            cfg->filters[i].tcpopts.dport = (__u16)tcpsport;
-            cfg->filters[i].tcpopts.do_dport = 1;
+            cfg->filters[i].tcpopts.sport = (__u16)tcpsport;
+            cfg->filters[i].tcpopts.do_sport = 1;
+        }
+
+        int tcpurg = json_integer_value(json_object_get(filter, "tcp_urg"));
+        if (tcpurg) {
+            cfg->filters[i].tcpopts.urg = tcpurg;
+            cfg->filters[i].tcpopts.do_urg = 1;
+        }
+
+        int tcpack = json_integer_value(json_object_get(filter, "tcp_ack"));
+        if (tcpack) {
+            cfg->filters[i].tcpopts.ack = tcpack;
+            cfg->filters[i].tcpopts.do_ack = 1;
+        }
+
+        int tcprst = json_integer_value(json_object_get(filter, "tcp_rst"));
+        if (tcprst) {
+            cfg->filters[i].tcpopts.rst = tcprst;
+            cfg->filters[i].tcpopts.do_rst = 1;
+        }
+
+        int tcppsh = json_integer_value(json_object_get(filter, "tcp_psh"));
+        if (tcppsh) {
+            cfg->filters[i].tcpopts.psh = tcppsh;
+            cfg->filters[i].tcpopts.do_psh= 1;
+        }
+
+        int tcpsyn = json_integer_value(json_object_get(filter, "tcp_syn"));
+        if (tcpsyn) {
+            cfg->filters[i].tcpopts.syn = tcpsyn;
+            cfg->filters[i].tcpopts.do_syn = 1;
+        }
+
+        int tcpfin = json_integer_value(json_object_get(filter, "tcp_fin"));
+        if (tcpfin) {
+            cfg->filters[i].tcpopts.fin = tcpfin;
+            cfg->filters[i].tcpopts.do_fin = 1;
+        }
+
+        int tcpece = json_integer_value(json_object_get(filter, "tcp_ece"));
+        if (tcpece) {
+            cfg->filters[i].tcpopts.ece = tcpece;
+            cfg->filters[i].tcpopts.do_ece = 1;
+        }
+
+        int tcpcwr = json_integer_value(json_object_get(filter, "tcp_cwr"));
+        if (tcpcwr) {
+            cfg->filters[i].tcpopts.cwr = tcpcwr;
+            cfg->filters[i].tcpopts.do_cwr = 1;
+        }
+
+        /* UDP options */
+        //UDP Enabled
+        cfg->filters[i].udpopts.enabled = json_boolean_value(json_object_get(filter, "udp_enabled"));
+
+        //UDP Dest Port
+        long long udpdport = json_integer_value(json_object_get(filter, "udp_dport"));
+        if (udpdport) {
+            cfg->filters[i].udpopts.dport = (__u16)udpdport;
+            cfg->filters[i].udpopts.do_dport = 1;
+        }
+
+        //UDP Source Port
+        long long udpsport = json_integer_value(json_object_get(filter, "udp_sport"));
+        if (udpsport) {
+            cfg->filters[i].udpopts.sport = (__u16)udpsport;
+            cfg->filters[i].udpopts.do_sport = 1;
+        }
+
+        /* ICMP options */
+        //ICMP Enabled
+        cfg->filters[i].icmpopts.enabled = json_boolean_value(json_object_get(filter, "icmp_enabled"));
+
+        //ICMP Code
+        int icmpcode = json_integer_value(json_object_get(filter, "icmp_code"));
+        if (icmpcode) {
+            cfg->filters[i].icmpopts.code = (__u8)icmpcode;
+            cfg->filters[i].icmpopts.do_code = 1;
+        }
+
+        //ICMP Type
+        int icmptype = json_integer_value(json_object_get(filter, "icmp_code"));
+        if (icmptype) {
+            cfg->filters[i].icmpopts.type = (__u8)icmptype;
+            cfg->filters[i].icmpopts.do_type = 1;
         }
 
         // Assign ID and increase filter count.
