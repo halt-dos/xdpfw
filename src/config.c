@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <libconfig.h>
+#include <jansson.h>
 #include <string.h>
 #include <linux/types.h>
 
@@ -110,14 +110,7 @@ int opencfg(const char *filename)
     return 0;
 }
 
-/**
- * Read the config file and stores values in config structure.
- * 
- * @param cfg A pointer to the config structure.
- * 
- * @return 0 on success or 1/-1 on error.
-*/
-int readcfg(struct config *cfg)
+int readcfg(struct config *cfg, const char *filename)
 {
     // Not sure why this would be set to NULL after checking for it in OpenConfig(), but just for safety.
     if (file == NULL)
@@ -125,130 +118,96 @@ int readcfg(struct config *cfg)
         return -1;
     }
 
-    // Initialize config.
-    config_t conf;
-    config_setting_t *setting;
+    json_t *root;
+    json_error_t error;
 
-    config_init(&conf);
-
-    // Attempt to read the config.
-    if (config_read(&conf, file) == CONFIG_FALSE)
-    {
-        fprintf(stderr, "Error from LibConfig when reading file - %s (Line %d)\n\n", config_error_text(&conf), config_error_line(&conf));
-
-        config_destroy(&conf);
-
+    // Load the JSON file
+    root = json_load_file(filename, 0, &error);
+    if (!root) {
+        fprintf(stderr, "Error reading JSON file: %s\n", error.text);
         return 1;
     }
 
-    // Get interface.
-    const char *interface;
-
-    if (!config_lookup_string(&conf, "interface", &interface))
-    {
-        fprintf(stderr, "Error from LibConfig when reading 'interface' setting - %s\n\n", config_error_text(&conf));
-        
-        config_destroy(&conf);
-
-        return 1;    
+    // Get Interface.
+    const char *interface = "interface";
+    json_t *value = json_object_get(root, interface);
+    if (value == NULL) {
+        fprintf(stderr, "Error when reading 'interface' setting - %s\n\n", interface);
+        return 1; 
     }
 
-    cfg->interface = strdup(interface);
+    const char *interface_value = json_string_value(value);
+    cfg->interface = strdup(interface_value);
 
     // Get auto update time.
-    int updatetime;
-
-    if (!config_lookup_int(&conf, "updatetime", &updatetime))
-    {
-        fprintf(stderr, "Error from LibConfig when reading 'updatetime' setting - %s\n\n", config_error_text(&conf));
-        
-        config_destroy(&conf);
-
-        return 1;    
+    const char *updatetime = "updatetime";
+    value = json_object_get(root, updatetime);
+    if (value == NULL) {
+        fprintf(stderr, "Error when reading 'updatetime' setting - %s\n\n", updatetime);
+        return 1; 
     }
 
-    cfg->updatetime = updatetime;
-
+    cfg->updatetime = json_integer_value(value);
+    
     // Get no stats.
-    int nostats;
-
-    if (config_lookup_bool(&conf, "nostats", &nostats) == CONFIG_TRUE)
-    {
-        cfg->nostats = nostats;
+    const char *nostats = "nostats";
+    value = json_object_get(root, nostats);
+    if (value != NULL) {
+        cfg->nostats = json_is_true(value);
     }
 
     // Read filters in filters_map structure.
-    setting = config_lookup(&conf, "filters");
+    json_t *filters = json_object_get(root, "filters");
 
-    // Check if filters map is valid. If not, not a biggie since they aren't required.
-    if (setting == NULL)
-    {
-        fprintf(stderr, "Error from LibConfig when reading 'filters' array - %s\n\n", config_error_text(&conf));
-        
-        config_destroy(&conf);
-
+    if (!json_is_array(filters)) {
+        fprintf(stderr, "Error getting filters from JSON file.\n");
         return 1;
     }
 
     // Set filter count.
-    int filters = 0;
+    int count = 0;
 
-    for (__u8 i = 0; i < config_setting_length(setting); i++)
+    size_t size = json_array_size(filters);
+
+    for (size_t i = 0; i < size; i++)
     {
-        config_setting_t* filter = config_setting_get_elem(setting, i);
+        json_t *filter = json_array_get(filters, i);
 
-        // Enabled.
-        int enabled;
-
-        if (config_setting_lookup_bool(filter, "enabled",  &enabled) == CONFIG_FALSE)
-        {
-            // Print error and stop from existing this rule any further.
-            fprintf(stderr, "Error from LibConfig when reading 'enabled' setting from filters array #%d. Error - %s\n\n", filters, config_error_text(&conf));
-
+        // Enabled (required)
+        int enabled = 0;
+        if (json_object_get(filter, "enabled") == NULL) {
+            fprintf(stderr, "Error getting enabled from filter.\n");
             continue;
         }
 
-        cfg->filters[i].enabled = enabled;
+        cfg->filters[i].enabled = json_boolean_value(json_object_get(filter, "enabled"));
 
         // Action (required).
         int action;
-
-        if (config_setting_lookup_int(filter, "action", &action) == CONFIG_FALSE)
-        {
-            fprintf(stderr, "Error from LibConfig when reading 'action' setting from filters array #%d. Error - %s\n\n", filters, config_error_text(&conf));
-
-            cfg->filters[i].enabled = 0;
-
+        if (json_object_get(filter, "action") == NULL) {
+            fprintf(stderr, "Error getting action from filter.\n");
             continue;
         }
 
-        cfg->filters[i].action = action;
+        cfg->filters[i].action = json_boolean_value(json_object_get(filter, "action"));
 
         // Source IP (not required).
-        const char *sip;
-
-        if (config_setting_lookup_string(filter, "srcip", &sip))
-        {
+        const char *sip = json_string_value(json_object_get(filter, "srcip"));
+        if (sip) {
             cfg->filters[i].srcip = inet_addr(sip);
         }
 
         // Destination IP (not required).
-        const char *dip;
-
-        if (config_setting_lookup_string(filter, "dstip", &dip))
-        {
+        const char *dip = json_string_value(json_object_get(filter, "dstip"));
+        if (dip) {
             cfg->filters[i].dstip = inet_addr(dip);
         }
 
         // Source IP (IPv6) (not required).
-        const char *sip6;
-
-        if (config_setting_lookup_string(filter, "srcip6", &sip6))
-        {
+        const char *sip6 = json_string_value(json_object_get(filter, "srcip6"));
+        if (sip6) {
             struct in6_addr in;
-
             inet_pton(AF_INET6, sip6, &in);
-
             for (__u8 j = 0; j < 4; j++)
             {
                 cfg->filters[i].srcip6[j] = in.__in6_u.__u6_addr32[j];
@@ -256,254 +215,35 @@ int readcfg(struct config *cfg)
         }
 
         // Destination IP (IPv6) (not required).
-        const char *dip6;
-
-        if (config_setting_lookup_string(filter, "dstip6", &dip6))
-        {
+        const char *dip6 = json_string_value(json_object_get(filter, "dstip6"));
+        if (dip6) {
             struct in6_addr in;
-
             inet_pton(AF_INET6, dip6, &in);
-
             for (__u8 j = 0; j < 4; j++)
             {
                 cfg->filters[i].dstip6[j] = in.__in6_u.__u6_addr32[j];
             }
         }
 
-        // Minimum TTL (not required).
-        int min_ttl;
+        cfg->filters[i].tcpopts.enabled = json_boolean_value(json_object_get(filter, "tcp_enabled"));
 
-        if (config_setting_lookup_int(filter, "min_ttl", &min_ttl))
-        {
-            cfg->filters[i].min_ttl = (__u8)min_ttl;
-            cfg->filters[i].do_min_ttl = 1;
-        }
-
-        // Maximum TTL (not required).
-        int max_ttl;
-
-        if (config_setting_lookup_int(filter, "max_ttl", &max_ttl))
-        {
-            cfg->filters[i].max_ttl = (__u8)max_ttl;
-            cfg->filters[i].do_max_ttl = 1;
-        }
-
-        // Minimum length (not required).
-        int min_len;
-
-        if (config_setting_lookup_int(filter, "min_len", &min_len))
-        {
-            cfg->filters[i].min_len = min_len;
-            cfg->filters[i].do_min_len = 1;
-        }
-
-        // Maximum length (not required).
-        int max_len;
-
-        if (config_setting_lookup_int(filter, "max_len", &max_len))
-        {
-            cfg->filters[i].max_len = max_len;
-            cfg->filters[i].do_max_len = 1;
-        }
-
-        // TOS (not required).
-        int tos;
-
-        if (config_setting_lookup_int(filter, "tos", &tos))
-        {
-            cfg->filters[i].tos = (__u8)tos;
-            cfg->filters[i].do_tos = 1;
-        }
-
-        // PPS (not required).
-        long long pps;
-
-        if (config_setting_lookup_int64(filter, "pps", &pps))
-        {
-            cfg->filters[i].pps = pps;
-            cfg->filters[i].do_pps = 1;
-        }
-
-        // BPS (not required).
-        long long bps;
-
-        if (config_setting_lookup_int64(filter, "bps", &bps))
-        {
-            cfg->filters[i].bps = bps;
-            cfg->filters[i].do_bps = 1;
-        }
-
-        // Block time (default 1).
-        long long blocktime;
-
-        if (config_setting_lookup_int64(filter, "blocktime", &blocktime))
-        {
-            cfg->filters[i].blocktime = blocktime;
-        }
-        else
-        {
-            cfg->filters[i].blocktime = 1;
-        }
-
-        /* TCP options */
-        // Enabled.
-        int tcpenabled;
-
-        if (config_setting_lookup_bool(filter, "tcp_enabled", &tcpenabled))
-        {
-            cfg->filters[i].tcpopts.enabled = tcpenabled;
-        }
-
-        // Source port.
-        long long tcpsport;
-
-        if (config_setting_lookup_int64(filter, "tcp_sport", &tcpsport))
-        {
-            cfg->filters[i].tcpopts.sport = (__u16)tcpsport;
-            cfg->filters[i].tcpopts.do_sport = 1;
-        }
-
-        // Destination port.
-        long long tcpdport;
-
-        if (config_setting_lookup_int64(filter, "tcp_dport", &tcpdport))
-        {
+        long long tcpdport = json_integer_value(json_object_get(filter, "tcp_dport"));
+        if (tcpdport) {
             cfg->filters[i].tcpopts.dport = (__u16)tcpdport;
             cfg->filters[i].tcpopts.do_dport = 1;
         }
 
-        // URG flag.
-        int tcpurg;
-
-        if (config_setting_lookup_bool(filter, "tcp_urg", &tcpurg))
-        {
-            cfg->filters[i].tcpopts.urg = tcpurg;
-            cfg->filters[i].tcpopts.do_urg = 1;
-        }
-
-        // ACK flag.
-        int tcpack;
-
-        if (config_setting_lookup_bool(filter, "tcp_ack", &tcpack))
-        {
-            cfg->filters[i].tcpopts.ack = tcpack;
-            cfg->filters[i].tcpopts.do_ack = 1;
-        }
-        
-
-        // RST flag.
-        int tcprst;
-
-        if (config_setting_lookup_bool(filter, "tcp_rst", &tcprst))
-        {
-            cfg->filters[i].tcpopts.rst = tcprst;
-            cfg->filters[i].tcpopts.do_rst = 1;
-        }
-
-        // PSH flag.
-        int tcppsh;
-
-        if (config_setting_lookup_bool(filter, "tcp_psh", &tcppsh))
-        {
-            cfg->filters[i].tcpopts.psh = tcppsh;
-            cfg->filters[i].tcpopts.do_psh = 1;
-        }
-
-        // SYN flag.
-        int tcpsyn;
-
-        if (config_setting_lookup_bool(filter, "tcp_syn", &tcpsyn))
-        {
-            cfg->filters[i].tcpopts.syn = tcpsyn;
-            cfg->filters[i].tcpopts.do_syn = 1;
-        }
-
-        // FIN flag.
-        int tcpfin;
-
-        if (config_setting_lookup_bool(filter, "tcp_fin", &tcpfin))
-        {
-            cfg->filters[i].tcpopts.fin = tcpfin;
-            cfg->filters[i].tcpopts.do_fin = 1;
-        }
-
-        // ECE flag.
-        int tcpece;
-
-        if (config_setting_lookup_bool(filter, "tcp_ece", &tcpece))
-        {
-            cfg->filters[i].tcpopts.ece = tcpece;
-            cfg->filters[i].tcpopts.do_ece = 1;
-        }
-
-        // CWR flag.
-        int tcpcwr;
-
-        if (config_setting_lookup_bool(filter, "tcp_cwr", &tcpcwr))
-        {
-            cfg->filters[i].tcpopts.cwr = tcpcwr;
-            cfg->filters[i].tcpopts.do_cwr = 1;
-        }
-
-        /* UDP options */
-        // Enabled.
-        int udpenabled;
-
-        if (config_setting_lookup_bool(filter, "udp_enabled", &udpenabled))
-        {
-            cfg->filters[i].udpopts.enabled = udpenabled;
-        }
-
-        // Source port.
-        long long udpsport;
-
-        if (config_setting_lookup_int64(filter, "udp_sport", &udpsport))
-        {
-            cfg->filters[i].udpopts.sport = (__u16)udpsport;
-            cfg->filters[i].udpopts.do_sport = 1;
-        }
-
-        // Destination port.
-        long long udpdport;
-
-        if (config_setting_lookup_int64(filter, "udp_dport", &udpdport))
-        {
-            cfg->filters[i].udpopts.dport = (__u16)udpdport;
-            cfg->filters[i].udpopts.do_dport = 1;
-        }
-
-        /* ICMP options */
-        // Enabled.
-        int icmpenabled;
-
-        if (config_setting_lookup_bool(filter, "icmp_enabled", &icmpenabled))
-        {
-            cfg->filters[i].icmpopts.enabled = icmpenabled;
-        }
-
-        // ICMP code.
-        int icmpcode;
-
-        if (config_setting_lookup_int(filter, "icmp_code", &icmpcode))
-        {
-            cfg->filters[i].icmpopts.code = (__u8)icmpcode;
-            cfg->filters[i].icmpopts.do_code = 1;
-        }
-
-        // ICMP type.
-        int icmptype;
-
-        if (config_setting_lookup_int(filter, "icmp_type", &icmptype))
-        {
-            cfg->filters[i].icmpopts.type = (__u8)icmptype;
-            cfg->filters[i].icmpopts.do_type = 1;
+        long long tcpsport = json_integer_value(json_object_get(filter, "tcp_sport"));
+        if (tcpsport) {
+            cfg->filters[i].tcpopts.dport = (__u16)tcpsport;
+            cfg->filters[i].tcpopts.do_dport = 1;
         }
 
         // Assign ID and increase filter count.
-        cfg->filters[i].id = ++filters;
+        cfg->filters[i].id = ++count;
     }
 
-    config_destroy(&conf);
-
+    json_decref(root);
+    fclose(file);
     return 0;
 }
