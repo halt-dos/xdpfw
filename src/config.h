@@ -14,4 +14,4 @@ struct config
 
 void setcfgdefaults(struct config *cfg);
 int opencfg(const char *filename);
-int readcfg(struct config *cfg);
+int readcfg(struct config *cfg, const char *filename);

@@ -1,5 +1,5 @@
 [Unit]
-Description=XDP Firewall tool.
+Description=XDP Firewall
 After=network-online.target
 Requires=network-online.target
 

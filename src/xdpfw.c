@@ -102,7 +102,7 @@ int updateconfig(struct config *cfg, char *cfgfile)
     }
 
     // Read config and check for errors.
-    if (readcfg(cfg) != 0)
+    if (readcfg(cfg, cfgfile) != 0)
     {
         fprintf(stderr, "Error reading filters file.\n");
 

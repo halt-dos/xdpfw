@@ -46,7 +46,7 @@ XDPPROGOBJ = xdpfw_kern.o
 OBJS = $(BUILDDIR)/$(CONFIGOBJ) $(BUILDDIR)/$(CMDLINEOBJ)
 
 # LD flags and includes.
-LDFLAGS += -lconfig -lelf -lz
+LDFLAGS += -lelf -lz -ljansson
 INCS = -I $(LIBBPFSRC)
 INCS += -I /usr/include -I /usr/local/include
 
@@ -86,7 +86,7 @@ clean:
 # Install chain.
 install:
 	mkdir -p /etc/xdpfw/
-	cp -n xdpfw.conf.example /etc/xdpfw/xdpfw.conf
+	cp -n xdpfw.conf /etc/xdpfw/xdpfw.conf
 	cp $(BUILDDIR)/$(XDPPROGOBJ) /etc/xdpfw/$(XDPPROGOBJ)
 	cp $(BUILDDIR)/$(XDPFWOUT) /usr/bin/$(XDPFWOUT)
 	cp -n other/xdpfw.service /etc/systemd/system/

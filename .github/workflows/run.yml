@@ -3,8 +3,6 @@ name: Run
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
 
 jobs:
   reuse_build:
@@ -19,10 +17,12 @@ jobs:
         name: build-output
     - name: Run apt update
       run: sudo apt update
-    - name: Install LibConfig
-      run: sudo apt install libconfig-dev
+    - name: Install LibJansson
+      run: sudo apt install -y libjansson-dev
+    - name: Install GLibC Developemental Files and Headers
+      run: sudo apt install -y libc6-dev
     - name: Install LibELF
-      run: sudo apt install libelf-dev
+      run: sudo apt install -y libelf-dev
     - name: List files
       run: ls -la
     - name: Add execute permissions to executable file

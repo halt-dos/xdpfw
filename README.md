@@ -90,38 +90,25 @@ Everything besides the main `enabled` and `action` options within a filter are *
 Here's an example of a config:
 
 ```squidconf
-interface = "ens18";
-updatetime = 15;
-
-filters = (
-    {
-        enabled = true,
-        action = 0,
-
-        udp_enabled = true,
-        udp_dport = 27015
-    },
-    {
-        enabled = true,
-        action = 1,
-
-        tcp_enabled = true,
-        tcp_syn = true,
-        tcp_dport = 27015
-    },
-    {
-        enabled = true,
-        action = 0,
-
-        icmp_enabled = true,
-        icmp_code = 0
-    },
-    {
-        enabled = true,
-        action = 0,
-        srcip = "10.50.0.4"
-    }
-);
+{
+    "interface": "eth0",
+    "updatetime": 15,
+    "filters": [
+        {
+            "enabled": true,
+            "action": 1,
+            "tcp_enabled": true,
+            "tcp_dport": 80
+        },
+        {
+            "enabled": true,
+            "action": 0,
+            "srcip": "172.105.58.208",
+            "tcp_enabled": true,
+            "tcp_dport": 80
+        }
+    ]
+}
 ```
 
 ## Building & Installation
@@ -129,7 +116,7 @@ Before building, ensure the following packages are installed. These packages are
 
 ```bash
 # Install dependencies.
-sudo apt install -y libconfig-dev llvm clang libelf-dev build-essential
+sudo apt install -y libjansson-dev llvm clang libelf-dev build-essential libc6-dev
 
 # Install dependencies for building LibXDP and LibBPF.
 sudo apt install -y libpcap-dev m4 gcc-multilib
